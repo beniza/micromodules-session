@@ -7,8 +7,14 @@
  *
  * Keys: Right / Space / PageDown next, Left / PageUp back, Home first, End last,
  *       F fullscreen, N speaker notes (hidden by default), T timer, R restart timer,
- *       O open the card's first link, P presenter window (notes in a separate window).
+ *       O open the card's first link, P presenter window (notes in a separate window),
+ *       Enter press the card's big button (the hand-over card).
  * The presenter window (index.html?presenter) follows the deck and can drive it.
+ *
+ * Hand-over: the card with "goto" shows a big button. Inside an LMS frame (a SCORM API in a parent
+ * window, e.g. Moodle's player) it fades to white and sends the top window to M.revealUrl (set at
+ * build time); anywhere else it opens that URL in a new tab. The deck remembers the next card, so
+ * coming back (browser Back) resumes after the hand-over.
  */
 (function () {
   'use strict';
@@ -16,6 +22,8 @@
   var PRESENTER = /[?&]presenter\b/.test(location.search);
   var CHANNEL = 'mm-deck-' + M.id;
   var TIMER_KEY = 'mm_deck_timer_' + M.id;
+  var RESUME_KEY = 'mm_deck_resume_' + M.id;
+  var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var bus = null;
   try { bus = new BroadcastChannel(CHANNEL); } catch (e) { /* not supported: presenter window unavailable */ }
 
@@ -103,12 +111,13 @@
 
   // ---- Renderers, one per card type ----
   var render = {
-    cover: function (c, sec) {
+    cover: function (c, sec, i) {
       sec.classList.add('cover');
       add(sec, 'p', 'eyebrow', esc(c.eyebrow));
       add(sec, 'h1', '', esc(c.title));
       add(sec, 'p', 'lead', esc(c.lead));
       linkRow(sec, c.links);
+      if (i === 0) add(sec, 'p', 'tap-hint', 'Press &rarr; to go on &middot; &larr; to go back');
     },
     divider: function (c, sec) {
       sec.classList.add('divider');
@@ -122,6 +131,12 @@
       sec.classList.add('statement');
       add(sec, 'p', 'lead', esc(c.lead));
       add(sec, 'h1', '', esc(c.title));
+      if (c.goto) {
+        var row = add(sec, 'div', 'btn-row');
+        var b = add(row, 'button', 'btn go', '<span>' + esc(c.goto) + '</span>' + ICON.arrow);
+        b.type = 'button';
+        b.addEventListener('click', function () { handOver(); });
+      }
     },
     ask: function (c, sec) {
       sec.classList.add('ask');
@@ -267,12 +282,12 @@
     }
   };
   var THEME = {
-    cover: 'blue', divider: 'blue', statement: 'blue', ask: 'sand', practice: 'sand', checklist: 'sand', asks: 'sand'
+    cover: 'blue', divider: 'blue', statement: 'blue', ask: 'blue', practice: 'sand', checklist: 'sand', asks: 'sand'
   };
 
   // ---- Build the cards ----
   var cards = M.cards.map(function (c, i) {
-    var sec = el('section', 'card theme-' + (THEME[c.type] || 'cream'));
+    var sec = el('section', 'card t-' + c.type + ' theme-' + (THEME[c.type] || 'cream'));
     sec.dataset.label = c.label || c.title;
     sec.setAttribute('aria-roledescription', 'slide');
     var inner = add(sec, 'div', 'inner');
@@ -284,14 +299,19 @@
   if (PRESENTER) { presenterView(); return; }
 
   var deck = document.getElementById('deck');
-  var bar = document.getElementById('progress');
-  var segName = document.getElementById('segname');
+  var topbar = document.getElementById('topbar');
+  var segBox = document.getElementById('segments');
+  var series = document.getElementById('series');
   var counter = document.getElementById('counter');
   var live = document.getElementById('live');
   var notesEl = document.getElementById('notes');
   var timerEl = document.getElementById('timer');
   var helpEl = document.getElementById('help');
+  var toastEl = document.getElementById('toast');
+  var veil = document.getElementById('veil');
   cards.forEach(function (c) { deck.appendChild(c.sec); });
+  // Story progress: one segment per card, as in the micromodules
+  var segs = cards.map(function () { var s = add(segBox, 'span', 'seg'); add(s, 'span'); return s; });
   document.title = M.title;
 
   var current = -1;
@@ -313,8 +333,9 @@
     var c = cards[i];
     var dark = c.sec.classList.contains('theme-blue');
     document.body.classList.toggle('on-dark', dark);
-    bar.style.width = (cards.length > 1 ? i / (cards.length - 1) * 100 : 100) + '%';
-    segName.textContent = SEG[c.def.segment].name;
+    topbar.classList.toggle('on-sand', c.sec.classList.contains('theme-sand'));
+    segs.forEach(function (s, k) { s.classList.toggle('done', k < i); s.classList.toggle('current', k === i); });
+    series.textContent = M.title + ' \u00b7 ' + SEG[c.def.segment].name;
     counter.textContent = (i + 1) + ' / ' + cards.length;
     live.textContent = 'Slide ' + (i + 1) + ' of ' + cards.length + ': ' + c.sec.dataset.label;
     renderNotes(notesEl, i);
@@ -386,10 +407,73 @@
   setInterval(tick, 1000);
 
   // ---- Fullscreen ----
-  function toggleFull() {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
+  // Inside Moodle the deck runs in the SCORM player's iframe, which has allowfullscreen. Where a
+  // frame doesn't allow it, say how to get browser full screen instead.
+  var toastTimer = null;
+  function toast(text) {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.hidden = true; }, 3500);
   }
+  function toggleFull() {
+    var d = document, root = d.documentElement;
+    if (d.fullscreenElement || d.webkitFullscreenElement) {
+      (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+      return;
+    }
+    var req = root.requestFullscreen || root.webkitRequestFullscreen;
+    var enabled = d.fullscreenEnabled || d.webkitFullscreenEnabled;
+    if (!req || !enabled) { toast('Press F11 for browser full screen'); return; }
+    var r = req.call(root);
+    if (r && r.catch) r.catch(function () { toast('Press F11 for browser full screen'); });
+  }
+
+  // ---- Hand-over to the LMS (the reveal) ----
+  function hasApi(w) {
+    try { return !!(w && (w.API || w.API_1484_11)); } catch (e) { return false; /* cross-origin */ }
+  }
+  function findApi() {
+    var w = window;
+    for (var k = 0; k < 10; k++) {
+      if (hasApi(w)) return true;
+      if (w.parent === w) break;
+      w = w.parent;
+    }
+    return hasApi(window.opener);
+  }
+  var IN_LMS = window.top !== window.self && findApi();
+  var handing = false;
+  function handOver() {
+    var url = M.revealUrl;
+    if (!url || handing) return;
+    if (!IN_LMS) { window.open(url, '_blank', 'noopener'); return; }
+    // Coming back to the deck in this tab (browser Back) resumes on the card after this one
+    try { sessionStorage.setItem(RESUME_KEY, String(Math.min(current + 1, cards.length - 1))); } catch (e) { /* storage blocked */ }
+    handing = true;
+    function go() {
+      try { window.top.location.href = url; } catch (e) {
+        handing = false;
+        veil.classList.remove('on');
+        window.open(url, '_blank', 'noopener');
+      }
+    }
+    if (REDUCED) { go(); return; }
+    veil.classList.add('on');
+    setTimeout(go, 650);
+  }
+  // Coming back from the LMS with browser Back: drop the veil
+  function takeResume() {
+    var r = null;
+    try { r = sessionStorage.getItem(RESUME_KEY); sessionStorage.removeItem(RESUME_KEY); } catch (e) { /* storage blocked */ }
+    r = parseInt(r, 10);
+    return r >= 0 && r < cards.length ? r : null;
+  }
+  window.addEventListener('pageshow', function (e) {
+    handing = false;
+    veil.classList.remove('on');
+    if (e.persisted) { var r = takeResume(); if (r !== null) show(r); } // restored from the back/forward cache
+  });
   function openFirstLink() {
     var a = cards[current].sec.querySelector('a[href]');
     if (a) window.open(a.href, '_blank', 'noopener');
@@ -423,6 +507,11 @@
       case 't': case 'T': timerEl.hidden = !timerEl.hidden; break;
       case 'r': case 'R': resetTimer(); break;
       case 'o': case 'O': openFirstLink(); break;
+      case 'Enter':
+        var goBtn = cards[current].sec.querySelector('.btn.go');
+        if (!goBtn) return false;
+        goBtn.click();
+        break;
       case 'p': case 'P': openPresenter(); break;
       case '?': case 'h': case 'H': helpEl.hidden = !helpEl.hidden; break;
       case 'Escape': helpEl.hidden = true; break;
@@ -433,7 +522,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.target.closest && e.target.closest('input, textarea')) return;
     // Let Enter/Space activate a focused link or button
-    if (e.key === ' ' && e.target.closest && e.target.closest('a, button')) return;
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('a, button')) return;
     if (onKey(e.key, e)) e.preventDefault();
   });
   if (bus) bus.onmessage = function (m) {
@@ -444,7 +533,12 @@
   document.getElementById('helpClose').addEventListener('click', function () { helpEl.hidden = true; });
 
   var start = parseInt((location.hash || '').slice(1), 10);
+  // Back from the hand-over: the resume point wins over the hash the frame's history kept
+  var resume = takeResume();
+  if (resume !== null) start = resume + 1;
   show(start >= 1 && start <= cards.length ? start - 1 : 0);
+  // In a frame (the LMS player), take the keyboard so the presenter keys work straight away
+  if (window.top !== window.self) { try { window.focus(); } catch (e) { /* ignore */ } }
 
   // ---- Presenter window ----
   function presenterView() {
