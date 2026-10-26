@@ -369,15 +369,76 @@ p { margin: 0; }
 .notes-on .timer { display: none; }
 .notes-head i { font-style: normal; color: #fff; }
 
-/* Presenter window (index.html?presenter) */
-.presenter-view { overflow: auto; background: #1C1916; }
-.presenter-view .notes { position: static; max-height: none; box-shadow: none; font-size: 22px; }
-.pv-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 28px; background: #2B2723; color: #F3EFE9; }
-.pv-timer { display: flex; gap: 14px; align-items: baseline; font-variant-numeric: tabular-nums; }
-.pv-timer b { font-size: 34px; }
-.pv-timer span { color: var(--accent); font-weight: 600; }
-.pv-timer.late b { color: #F0B27A; }
-.pv-keys { color: rgba(255, 255, 255, 0.5); font-size: 15px; }
+/* Presenter view (index.html?presenter): a laptop window (about 1280 x 800), readable at a glance */
+body.pv { display: block; overflow: auto; background: var(--cream); min-height: 100%; font-size: 18px; line-height: 1.4; }
+.pv [hidden] { display: none !important; }
+.pv button { cursor: pointer; border: 0; border-radius: 10px; font-weight: 700; font-size: 17px; min-height: 44px; padding: 0 18px; }
+.pv-head { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 14px 20px; background: var(--blue); color: #fff; }
+.pv-head section { border-radius: 16px; padding: 12px 20px 14px; background: rgba(255, 255, 255, 0.08); font-variant-numeric: tabular-nums; }
+.pv-k { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+.pv-big { margin: 2px 0 4px; font-size: 54px; font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; }
+.pv-big small { font-size: 20px; font-weight: 600; opacity: 0.8; letter-spacing: 0; }
+.pv-sub { margin: 0; font-size: 17px; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
+.pv-chip { display: inline-block; margin-left: 6px; padding: 2px 12px; border-radius: 999px; font-size: 16px; }
+.pv-chip.ontime { background: rgba(255, 255, 255, 0.18); }
+.pv-chip.ahead { background: #2E7D4F; }
+.pv-chip.behind { background: #B3261E; }
+.pv-chip.idle { background: rgba(255, 255, 255, 0.12); opacity: 0.8; }
+.pv-ctl { display: flex; gap: 10px; margin-top: 10px; }
+.pv-ctl button { background: #fff; color: var(--blue); }
+.pv-ctl button + button { background: transparent; color: #fff; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5); }
+.pv-count { transition: background 0.3s ease; }
+.pv-count .pv-big { font-size: 72px; }
+.pv-count.amber { background: #F2B544; color: var(--ink); }
+.pv-count.amber .pv-sub { color: var(--ink); }
+.pv-count.over { background: #B3261E; color: #fff; }
+.pv-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); overflow: hidden; margin: 4px 0 8px; }
+.pv-track span { display: block; height: 100%; width: 0; background: var(--accent); }
+.pv-count.amber .pv-track { background: rgba(43, 39, 35, 0.15); }
+.pv-count.amber .pv-track span { background: var(--ink); }
+.pv-count.over .pv-track span { background: #fff; }
+.pv-main { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; padding: 18px 24px 24px; }
+.pv-where { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--warm-grey); font-variant-numeric: tabular-nums; }
+.pv h1 { margin: 4px 0 12px; font-size: 34px; line-height: 1.15; color: var(--ink); }
+.pv-act { list-style: none; margin: 0 0 14px; padding: 0; }
+.pv-act li { margin: 0 0 8px; padding: 10px 16px 10px 46px; position: relative; border-radius: 12px; background: var(--accent); color: var(--ink); font-size: 22px; font-weight: 800; }
+.pv-act li::before { content: 'DO'; position: absolute; left: 12px; top: 13px; font-size: 13px; letter-spacing: 0.08em; color: var(--blue); }
+.pv-say { margin: 0 0 14px; padding-left: 28px; font-size: 25px; line-height: 1.32; color: var(--ink); }
+.pv-say li { margin: 0 0 10px; padding-left: 4px; }
+.pv-say li::marker { color: var(--blue); }
+.pv-cue { margin: 0 0 12px; padding: 8px 14px; border-left: 5px solid var(--blue); background: var(--beige); font-size: 18px; font-weight: 600; color: var(--blue); }
+.pv-notes { border-top: 1px solid var(--line); padding-top: 8px; font-size: 17px; color: var(--ink-soft); }
+.pv-notes summary { cursor: pointer; font-weight: 700; color: var(--blue); min-height: 32px; }
+.pv-notes ul { margin: 6px 0; padding-left: 22px; }
+.pv-notes li { margin: 4px 0; }
+.pv-thumb { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: var(--sand); box-shadow: 0 0 0 1px var(--line); }
+.pv-thumb .stage { border-radius: 0; box-shadow: none; pointer-events: none; }
+.pv-thumb .card { transition: none; }
+.pv-next { margin: 12px 0; font-size: 20px; }
+.pv-next span { display: block; font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--warm-grey); }
+.pv-next b { color: var(--ink); }
+.pv-nav { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.pv-nav button { background: var(--beige); color: var(--ink); min-height: 56px; font-size: 20px; }
+.pv-nav button + button { background: var(--blue); color: #fff; }
+.pv-link { margin: 12px 0 6px; font-size: 15px; font-weight: 700; }
+.pv-link.ok { color: #2E7D4F; }
+.pv-link.warn { color: #B3261E; }
+.pv-keys { margin: 0; font-size: 14px; color: var(--warm-grey); }
+.pv button:focus-visible, .pv summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 1000px) { .pv-main { grid-template-columns: 1fr; } .pv-head { grid-template-columns: 1fr; } }
+
+/* Presenter address toast in the deck (only after P, when the pop-up was blocked) */
+.pv-toast { position: fixed; z-index: 46; left: 16px; bottom: 16px; max-width: min(560px, 90vw); padding: 12px 14px; border-radius: 12px; background: rgba(43, 39, 35, 0.94); color: #fff; font-size: 14px; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25); }
+.pv-toast[hidden] { display: none; }
+.pv-toast p { margin: 0 0 6px; }
+.pv-toast code { display: block; margin-bottom: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); word-break: break-all; font-size: 13px; }
+.pv-toast div { display: flex; gap: 8px; }
+.pv-toast button { cursor: pointer; border: 0; border-radius: 8px; padding: 6px 12px; font-weight: 700; background: #fff; color: var(--ink); }
+.pv-toast .pv-x { background: transparent; color: #fff; font-size: 20px; padding: 0 8px; }
+.help-pv { margin: 0 0 18px; padding: 12px 14px; border-radius: 12px; background: var(--beige); font-size: 15px; }
+.help-pv[hidden] { display: none; }
+.help-pv p { margin: 0 0 6px; }
+.help-pv code { display: block; margin-bottom: 8px; word-break: break-all; font-size: 14px; }
 
 /* Help */
 .help { position: fixed; z-index: 40; inset: 0; margin: auto; width: min(640px, 92vw); height: fit-content; padding: 28px 32px; border-radius: 20px; background: #fff; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35); font-size: 17px; }

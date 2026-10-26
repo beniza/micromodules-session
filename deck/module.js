@@ -6,10 +6,15 @@
  * No SCORM tracking, no blocking cards: the presenter navigates freely.
  *
  * Keys: Right / Space / PageDown next, Left / PageUp back, Home first, End last,
- *       F fullscreen, N speaker notes (hidden by default), T timer, R restart timer,
- *       O open the card's first link, P presenter window (notes in a separate window),
- *       Enter press the card's big button (the hand-over card).
- * The presenter window (index.html?presenter) follows the deck and can drive it.
+ *       F fullscreen, N speaker notes (hidden by default), T timer (hidden by default),
+ *       R restart the session timer, O open the card's first link, P presenter window,
+ *       Enter press the card's big button (the hand-over card), ? help.
+ *
+ * Presenter view: the same page with ?presenter (P opens it; or open that address yourself in a
+ * second window of the same browser). It shows each card's "say" talking points and "act" cues,
+ * a thumbnail, the next card, the session timer against the 60-minute plan and a countdown of
+ * the card's "seconds" budget; it drives the deck. Both windows share a clock in localStorage and
+ * talk over BroadcastChannel (with localStorage events as a fallback), so they must share an origin.
  *
  * Hand-over: the card with "goto" shows a big button. Inside an LMS frame (a SCORM API in a parent
  * window, e.g. Moodle's player) it fades to white and sends the top window to M.revealUrl (set at
@@ -21,7 +26,6 @@
   var M = window.MODULE;
   var PRESENTER = /[?&]presenter\b/.test(location.search);
   var CHANNEL = 'mm-deck-' + M.id;
-  var TIMER_KEY = 'mm_deck_timer_' + M.id;
   var RESUME_KEY = 'mm_deck_resume_' + M.id;
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var bus = null;
@@ -295,7 +299,81 @@
     return { def: c, sec: sec, steps: sec.querySelectorAll('.step'), shown: 0 };
   });
 
-  // ---- Presenter window: notes only, follows the deck ----
+  // ---- Shared clock and messages (deck <-> presenter window, same origin) ----
+  // The clock lives in localStorage, so both windows read the same numbers: the session timer
+  // (base + time since start while running) and the current card's countdown (cbase + time since
+  // the card was shown). Messages go over BroadcastChannel and, as a fallback, localStorage events.
+  var BUDGET = M.cards.map(function (c) { return c.seconds || 0; });
+  var PLAN_START = [];
+  var TOTAL = BUDGET.reduce(function (sum, s, k) { PLAN_START[k] = sum; return sum + s; }, 0);
+  var CLOCK_KEY = 'mm_deck_clock_' + M.id;
+  var MSG_KEY = 'mm_deck_msg_' + M.id;
+  var STALE_MS = 8 * 3600 * 1000;     // a clock untouched for 8 hours is yesterday's rehearsal: start fresh
+  var myId = Math.random().toString(36).slice(2);
+  var memClock = null;
+  var handlers = [];
+  var seen = {};
+  function freshClock() { return { run: false, base: 0, since: 0, ci: -1, cbase: 0, csince: 0, touched: Date.now() }; }
+  function readClock() {
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(CLOCK_KEY)); } catch (e) { /* storage blocked */ }
+    if (!s) s = memClock;
+    if (!s || Date.now() - (s.touched || 0) > STALE_MS) s = freshClock();
+    return s;
+  }
+  function writeClock(s) {
+    s.touched = Date.now();
+    memClock = s;
+    try { localStorage.setItem(CLOCK_KEY, JSON.stringify(s)); } catch (e) { /* storage blocked: messages carry it */ }
+    send({ type: 'clock', s: s });
+  }
+  function send(msg) {
+    msg.from = myId;
+    msg.n = myId + Math.random().toString(36).slice(2);
+    if (bus) { try { bus.postMessage(msg); } catch (e) { /* closed */ } }
+    try { localStorage.setItem(MSG_KEY, JSON.stringify(msg)); } catch (e) { /* storage blocked */ }
+  }
+  function receive(msg) {
+    if (!msg || msg.from === myId || seen[msg.n]) return;
+    seen[msg.n] = 1;
+    if (msg.type === 'clock' && msg.s) memClock = msg.s;
+    handlers.forEach(function (h) { h(msg); });
+  }
+  if (bus) bus.onmessage = function (e) { receive(e.data); };
+  window.addEventListener('storage', function (e) {
+    if (e.key === MSG_KEY && e.newValue) { try { receive(JSON.parse(e.newValue)); } catch (x) { /* ignore */ } }
+  });
+  function elapsedMs(s, t) { return s.base + (s.run ? t - s.since : 0); }
+  function cardMs(s, t) { return s.cbase + (s.run ? t - s.csince : 0); }
+  function clockStart() {
+    var s = readClock(), t = Date.now();
+    if (!s.run) { s.run = true; s.since = t; s.csince = t; }
+    writeClock(s);
+  }
+  function clockPause() {
+    var s = readClock(), t = Date.now();
+    if (s.run) { s.base += t - s.since; s.cbase += t - s.csince; s.run = false; }
+    writeClock(s);
+  }
+  function clockReset(run) {
+    var s = readClock(), t = Date.now();
+    s.base = 0; s.cbase = 0; s.since = t; s.csince = t; s.run = !!run;
+    writeClock(s);
+  }
+  // A new card restarts its countdown (going back to a card restarts it too). The session timer
+  // starts by itself when you leave the title card (counting the title card's budget as done).
+  function clockCard(i) {
+    var s = readClock(), t = Date.now();
+    if (s.ci === i) return;
+    var from = s.ci;
+    s.ci = i; s.cbase = 0; s.csince = t;
+    if (!s.run && s.base === 0 && i > 0) { s.run = true; s.since = t; if (from === 0) s.base = BUDGET[0] * 1000; }
+    writeClock(s);
+  }
+  function mmss(sec) { sec = Math.round(sec); return Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2); }
+  function presenterUrl() { return location.href.split('#')[0].split('?')[0] + '?presenter'; }
+
+  // ---- Presenter window (index.html?presenter): talking points, timers, drives the deck ----
   if (PRESENTER) { presenterView(); return; }
 
   var deck = document.getElementById('deck');
@@ -335,11 +413,11 @@
     document.body.classList.toggle('on-dark', dark);
     topbar.classList.toggle('on-sand', c.sec.classList.contains('theme-sand'));
     segs.forEach(function (s, k) { s.classList.toggle('done', k < i); s.classList.toggle('current', k === i); });
-    series.textContent = M.title + ' \u00b7 ' + SEG[c.def.segment].name;
+    series.textContent = M.title + ' · ' + SEG[c.def.segment].name;
     counter.textContent = (i + 1) + ' / ' + cards.length;
     live.textContent = 'Slide ' + (i + 1) + ' of ' + cards.length + ': ' + c.sec.dataset.label;
     renderNotes(notesEl, i);
-    if (i > 0) startTimer();
+    clockCard(i);
     tick();
     announce();
     try { history.replaceState(null, '', '#' + (i + 1)); } catch (e) { /* file: or sandbox */ }
@@ -355,16 +433,17 @@
     show(current - 1, true);
   }
   function announce() {
-    if (bus) bus.postMessage({ type: 'at', i: current, shown: cards[current].shown, t0: t0 });
+    send({ type: 'at', i: current, shown: cards[current].shown, build: M.build || '' });
   }
 
-  // ---- Notes ----
+  // ---- Notes on this screen (N; hidden by default, never needed with the presenter window) ----
   function renderNotes(box, i) {
     var c = cards[i].def;
     var w = windowOf(c);
     var html = '<div class="notes-head"><b>' + (i + 1) + '. ' + esc(c.label || c.title) + '</b><span>' + esc(SEG[c.segment].name) + ' · plan ' + esc(w.start + '–' + w.end) + ' · <i data-elapsed></i></span></div>';
     if (c.cue) html += '<p class="cue">' + esc(c.cue) + '</p>';
-    if (c.notes && c.notes.length) html += '<ul>' + c.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>';
+    (c.act || []).forEach(function (a) { html += '<p class="cue">' + esc(a) + '</p>'; });
+    if (c.say && c.say.length) html += '<ul>' + c.say.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>';
     var nx = cards[i + 1];
     html += '<p class="next-up">Next: ' + (nx ? esc(nx.def.label || nx.def.title) : 'end of deck') + '</p>';
     box.innerHTML = html;
@@ -375,39 +454,23 @@
     document.body.classList.toggle('notes-on', on);
   }
 
-  // ---- Timer: starts when you leave the title card; R restarts it ----
-  var t0 = null;
-  try { t0 = parseInt(sessionStorage.getItem(TIMER_KEY), 10) || null; } catch (e) { /* storage blocked */ }
-  function startTimer() {
-    if (t0) return;
-    t0 = Date.now();
-    try { sessionStorage.setItem(TIMER_KEY, String(t0)); } catch (e) { /* storage blocked */ }
-  }
-  function resetTimer() {
-    t0 = current > 0 ? Date.now() : null;
-    try { if (t0) sessionStorage.setItem(TIMER_KEY, String(t0)); else sessionStorage.removeItem(TIMER_KEY); } catch (e) { /* storage blocked */ }
-    tick();
-    announce();
-  }
-  function timerState(i) {
-    var w = windowOf(cards[i].def);
-    var el2 = t0 ? (Date.now() - t0) / 1000 : 0;
-    var late = t0 && el2 > mins(w.end) * 60;
-    return { text: clock(el2), plan: w.start + '–' + w.end, late: late };
-  }
+  // ---- Timer on this screen: hidden by default (T shows it); R restarts the session timer ----
   function tick() {
     if (current < 0) return;
-    var s = timerState(current);
-    timerEl.innerHTML = '<b>' + s.text + '</b><span>plan ' + esc(s.plan) + '</span>';
-    timerEl.classList.toggle('late', !!s.late);
-    timerEl.classList.toggle('idle', !t0);
+    var s = readClock(), t = Date.now();
+    var sec = elapsedMs(s, t) / 1000;
+    var started = s.run || s.base > 0;
+    var w = windowOf(cards[current].def);
+    timerEl.innerHTML = '<b>' + clock(sec) + '</b><span>plan ' + esc(w.start + '–' + w.end) + '</span>';
+    timerEl.classList.toggle('late', started && sec > mins(w.end) * 60);
+    timerEl.classList.toggle('idle', !started);
     var e = notesEl.querySelector('[data-elapsed]');
-    if (e) e.textContent = t0 ? 'elapsed ' + s.text : 'timer not started';
+    if (e) e.textContent = started ? 'elapsed ' + clock(sec) : 'timer not started';
   }
   setInterval(tick, 1000);
 
   // ---- Fullscreen ----
-  // Inside Moodle the deck runs in the SCORM player's iframe, which has allowfullscreen. Where a
+  // Inside an LMS the deck runs in the SCORM player's iframe, which has allowfullscreen. Where a
   // frame doesn't allow it, say how to get browser full screen instead.
   var toastTimer = null;
   function toast(text) {
@@ -478,9 +541,56 @@
     var a = cards[current].sec.querySelector('a[href]');
     if (a) window.open(a.href, '_blank', 'noopener');
   }
-  function openPresenter() {
-    window.open(location.pathname + '?presenter', 'mm-deck-presenter', 'width=900,height=700');
+
+  // ---- Presenter window: P opens it; if the browser blocks the pop-up, a small toast (only after
+  // P, gone after 15 s) gives the address to open in another window, with a copy button ----
+  var pvToastEl = null, pvToastTimer = null;
+  function copyText(text, btn) {
+    function done(ok) { btn.textContent = ok ? 'Copied' : 'Select and copy'; }
+    function legacy() {
+      var ta = el('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { /* unsupported */ }
+      document.body.removeChild(ta);
+      done(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true); }, legacy);
+    else legacy();
   }
+  function hidePvToast() { if (pvToastEl) pvToastEl.hidden = true; clearTimeout(pvToastTimer); }
+  function pvToast(url) {
+    if (!pvToastEl) {
+      pvToastEl = add(document.body, 'div', 'pv-toast');
+      pvToastEl.setAttribute('role', 'status');
+    }
+    pvToastEl.innerHTML = '<p>Pop-up blocked. Open the presenter view in another window:</p><code></code><div><button type="button" class="pv-copy">Copy address</button><button type="button" class="pv-x" aria-label="Close">&times;</button></div>';
+    pvToastEl.querySelector('code').textContent = url;
+    var copyBtn = pvToastEl.querySelector('.pv-copy');
+    copyBtn.addEventListener('click', function () { copyText(url, copyBtn); });
+    pvToastEl.querySelector('.pv-x').addEventListener('click', hidePvToast);
+    pvToastEl.hidden = false;
+    clearTimeout(pvToastTimer);
+    pvToastTimer = setTimeout(hidePvToast, 15000);
+  }
+  function openPresenter() {
+    var url = presenterUrl(), w = null;
+    try { w = window.open(url, 'mm-deck-presenter', 'popup,width=1280,height=800'); } catch (e) { w = null; }
+    if (w) { try { w.focus(); } catch (e) { /* ignore */ } hidePvToast(); return; }
+    pvToast(url);
+  }
+
+  // Help (?): learners in an LMS only see the moving keys; elsewhere it also gives the presenter
+  // view's address with a copy button
+  (function () {
+    helpEl.querySelectorAll('[data-presenter]').forEach(function (n) { n.hidden = IN_LMS; });
+    var box = document.getElementById('helpPv');
+    if (!box || IN_LMS) return;
+    box.querySelector('code').textContent = presenterUrl();
+    var b = box.querySelector('button');
+    b.addEventListener('click', function () { copyText(presenterUrl(), b); });
+  })();
 
   // ---- Input ----
   deck.addEventListener('click', function (e) {
@@ -504,8 +614,8 @@
       case 'End': show(cards.length - 1); break;
       case 'f': case 'F': toggleFull(); break;
       case 'n': case 'N': toggleNotes(); break;
-      case 't': case 'T': timerEl.hidden = !timerEl.hidden; break;
-      case 'r': case 'R': resetTimer(); break;
+      case 't': case 'T': timerEl.hidden = !timerEl.hidden; tick(); break;
+      case 'r': case 'R': clockReset(true); tick(); break;
       case 'o': case 'O': openFirstLink(); break;
       case 'Enter':
         var goBtn = cards[current].sec.querySelector('.btn.go');
@@ -514,7 +624,7 @@
         break;
       case 'p': case 'P': openPresenter(); break;
       case '?': case 'h': case 'H': helpEl.hidden = !helpEl.hidden; break;
-      case 'Escape': helpEl.hidden = true; break;
+      case 'Escape': helpEl.hidden = true; hidePvToast(); break;
       default: return false;
     }
     return true;
@@ -525,11 +635,11 @@
     if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('a, button')) return;
     if (onKey(e.key, e)) e.preventDefault();
   });
-  if (bus) bus.onmessage = function (m) {
-    var d = m.data || {};
+  handlers.push(function (d) {
     if (d.type === 'key') onKey(d.key);
     else if (d.type === 'hello') announce();
-  };
+    else if (d.type === 'clock') tick();
+  });
   document.getElementById('helpClose').addEventListener('click', function () { helpEl.hidden = true; });
 
   var start = parseInt((location.hash || '').slice(1), 10);
@@ -537,56 +647,141 @@
   var resume = takeResume();
   if (resume !== null) start = resume + 1;
   show(start >= 1 && start <= cards.length ? start - 1 : 0);
-  // In a frame (the LMS player), take the keyboard so the presenter keys work straight away
+  // In a frame (the LMS player), take the keyboard so the keys work straight away
   if (window.top !== window.self) { try { window.focus(); } catch (e) { /* ignore */ } }
 
-  // ---- Presenter window ----
+  // ---- Presenter view ----
   function presenterView() {
-    document.body.className = 'presenter-view';
-    document.body.innerHTML = '';
-    document.title = 'Notes: ' + M.title;
-    var top = add(document.body, 'div', 'pv-top');
-    var timer = add(top, 'div', 'pv-timer');
-    var keys = add(top, 'p', 'pv-keys', '&larr; &rarr; move the deck from here &middot; R restart timer');
-    keys.setAttribute('aria-hidden', 'true');
-    var box = add(document.body, 'div', 'notes pv-notes');
-    var at = 0;
-    function renderAt(i, shown) {
-      at = i;
-      renderNotesP(box, i, shown);
-    }
-    function renderNotesP(b, i, shown) {
-      var c = cards[i].def;
+    var body = document.body;
+    body.className = 'pv';
+    document.title = 'Presenter view: ' + M.title;
+    body.innerHTML =
+      '<header class="pv-head">' +
+        '<section class="pv-clock" aria-label="Session timer">' +
+          '<p class="pv-k">Session</p>' +
+          '<p class="pv-big"><span id="pvEl">0:00</span> <small>elapsed</small></p>' +
+          '<p class="pv-sub"><span id="pvPlan"></span> <b class="pv-chip" id="pvDiff"></b></p>' +
+          '<div class="pv-ctl"><button type="button" id="pvRun">Start</button><button type="button" id="pvReset">Reset</button></div>' +
+        '</section>' +
+        '<section class="pv-count" id="pvCount" aria-label="Time left for this card">' +
+          '<p class="pv-k">This card</p>' +
+          '<p class="pv-big" id="pvLeft"></p>' +
+          '<div class="pv-track"><span id="pvFill"></span></div>' +
+          '<p class="pv-sub" id="pvOf"></p>' +
+        '</section>' +
+      '</header>' +
+      '<main class="pv-main">' +
+        '<div class="pv-left">' +
+          '<p class="pv-where" id="pvWhere"></p>' +
+          '<h1 id="pvTitle"></h1>' +
+          '<ul class="pv-act" id="pvAct"></ul>' +
+          '<ul class="pv-say" id="pvSay"></ul>' +
+          '<p class="pv-cue" id="pvCue"></p>' +
+          '<details class="pv-notes"><summary>Full notes</summary><div id="pvNotes"></div></details>' +
+        '</div>' +
+        '<aside class="pv-right">' +
+          '<div class="pv-thumb" id="pvThumb"></div>' +
+          '<p class="pv-next"><span>Next</span> <b id="pvNext"></b></p>' +
+          '<div class="pv-nav"><button type="button" id="pvPrev">&larr; Back</button><button type="button" id="pvFwd">Next &rarr;</button></div>' +
+          '<p class="pv-link" id="pvLink"></p>' +
+          '<p class="pv-keys">Keys here: &larr; &rarr; move the deck &middot; S start or pause the session timer. ' +
+            'The timer starts by itself when the deck leaves the title card. Each card’s countdown restarts whenever that card is shown, also when you go back to it.</p>' +
+        '</aside>' +
+      '</main>';
+    function $(id) { return document.getElementById(id); }
+    var at = Math.max(0, Math.min(cards.length - 1, readClock().ci)), shown = 0, lastSeen = 0, deckBuild = '';
+    var thumb = $('pvThumb');
+    var stage = add(thumb, 'div', 'stage');
+    var tdeck = add(stage, 'div', 'deck');
+
+    function fitThumb() { stage.style.setProperty('--u', (thumb.clientWidth / 1920) + 'px'); }
+    function render() {
+      var c = cards[at].def;
       var w = windowOf(c);
-      var html = '<div class="notes-head"><b>' + (i + 1) + ' / ' + cards.length + '. ' + esc(c.label || c.title) + '</b><span>' + esc(SEG[c.segment].name) + ' · plan ' + esc(w.start + '–' + w.end) + '</span></div>';
-      if (cards[i].steps.length) html += '<p class="cue">Points shown: ' + shown + ' of ' + cards[i].steps.length + '</p>';
-      if (c.cue) html += '<p class="cue">' + esc(c.cue) + '</p>';
-      if (c.notes && c.notes.length) html += '<ul>' + c.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>';
-      var nx = cards[i + 1];
-      html += '<p class="next-up">Next: ' + (nx ? esc(nx.def.label || nx.def.title) : 'end of deck') + '</p>';
-      b.innerHTML = html;
+      $('pvWhere').textContent = (at + 1) + ' / ' + cards.length + ' · ' + SEG[c.segment].name + ' · plan ' + w.start + '–' + w.end;
+      $('pvTitle').textContent = c.label || c.title || c.type;
+      $('pvAct').innerHTML = (c.act || []).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('');
+      $('pvAct').hidden = !(c.act && c.act.length);
+      $('pvSay').innerHTML = (c.say || []).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('');
+      $('pvCue').textContent = c.cue || '';
+      $('pvCue').hidden = !c.cue;
+      var steps = cards[at].steps.length;
+      $('pvNotes').innerHTML = (steps ? '<p><b>Points shown on the deck: ' + shown + ' of ' + steps + '</b></p>' : '') +
+        ((c.notes && c.notes.length) ? '<ul>' + c.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '<p>No notes for this card.</p>');
+      var nx = cards[at + 1];
+      $('pvNext').textContent = nx ? (at + 2) + '. ' + (nx.def.label || nx.def.title) : 'End of deck';
+      // Thumbnail: a copy of the card itself in a small card frame
+      var copy = cards[at].sec.cloneNode(true);
+      copy.classList.add('active'); copy.classList.remove('before');
+      copy.removeAttribute('aria-hidden'); copy.inert = true;
+      copy.querySelectorAll('.step').forEach(function (s, k) { s.classList.toggle('on', k < shown); });
+      tdeck.innerHTML = '';
+      tdeck.appendChild(copy);
+      stage.classList.toggle('pv-dark', copy.classList.contains('theme-blue'));
+      fitThumb();
+      ptick();
     }
-    // The deck sends its timer start with each update (sessionStorage is per window)
-    var deckT0 = null;
-    function ptick2() {
-      var w = windowOf(cards[at].def);
-      var s = deckT0 ? (Date.now() - deckT0) / 1000 : 0;
-      timer.innerHTML = '<b>' + (deckT0 ? clock(s) : 'not started') + '</b><span>plan ' + esc(w.start + '–' + w.end) + '</span>';
-      timer.classList.toggle('late', !!(deckT0 && s > mins(w.end) * 60));
-    }
-    renderAt(0, 0);
-    if (!bus) { box.innerHTML = '<p>This browser cannot link windows. Use N in the deck instead.</p>'; return; }
-    bus.onmessage = function (m) {
-      var d = m.data || {};
-      if (d.type === 'at') { if ('t0' in d) deckT0 = d.t0; renderAt(d.i, d.shown); ptick2(); }
-    };
-    bus.postMessage({ type: 'hello' });
-    document.addEventListener('keydown', function (e) {
-      if (['ArrowRight', 'ArrowLeft', 'PageDown', 'PageUp', ' ', 'Home', 'End', 'r', 'R'].indexOf(e.key) >= 0) {
-        e.preventDefault();
-        bus.postMessage({ type: 'key', key: e.key });
+    function ptick() {
+      var s = readClock(), t = Date.now();
+      var started = s.run || s.base > 0;
+      var e = elapsedMs(s, t) / 1000;
+      var st = PLAN_START[at], en = st + BUDGET[at];
+      $('pvEl').textContent = clock(e);
+      $('pvPlan').textContent = 'plan here ' + mmss(st) + '–' + mmss(en) + ' of ' + mmss(TOTAL);
+      var diff = $('pvDiff');
+      if (!started) { diff.textContent = 'not started'; diff.className = 'pv-chip idle'; }
+      else if (e < st) { diff.textContent = clock(st - e) + ' ahead'; diff.className = 'pv-chip ahead'; }
+      else if (e > en) { diff.textContent = clock(e - en) + ' behind'; diff.className = 'pv-chip behind'; }
+      else { diff.textContent = 'on time'; diff.className = 'pv-chip ontime'; }
+      $('pvRun').textContent = s.run ? 'Pause' : (started ? 'Resume' : 'Start');
+      // This card: counts down from its budget; amber in the last 20 %, red when over
+      var budget = BUDGET[at];
+      var used = s.ci === at ? cardMs(s, t) / 1000 : 0;
+      var left = budget - used;
+      var box = $('pvCount');
+      box.classList.toggle('amber', left >= 0 && left <= budget * 0.2);
+      box.classList.toggle('over', left < 0);
+      $('pvLeft').innerHTML = left < 0 ? '+' + clock(-left) + ' <small>over</small>' : clock(Math.ceil(left)) + ' <small>left</small>';
+      $('pvFill').style.width = Math.min(100, used / budget * 100) + '%';
+      $('pvOf').textContent = 'budget ' + clock(budget) + (s.run ? '' : ' · paused');
+      var link = $('pvLink');
+      if (deckBuild && M.build && deckBuild !== M.build) {
+        link.textContent = 'The deck has a newer build: press Ctrl+F5 in this window.'; link.className = 'pv-link warn';
+      } else if (Date.now() - lastSeen < 7000) {
+        link.textContent = 'Linked to the deck'; link.className = 'pv-link ok';
+      } else {
+        link.textContent = 'Waiting for the deck: open it in another tab or window of this browser.'; link.className = 'pv-link warn';
       }
+    }
+    handlers.push(function (d) {
+      if (d.type === 'at') {
+        lastSeen = Date.now();
+        deckBuild = d.build || '';
+        if (d.i !== at || d.shown !== shown) { at = Math.max(0, Math.min(cards.length - 1, d.i)); shown = d.shown || 0; render(); }
+      } else if (d.type === 'clock') ptick();
     });
-    setInterval(ptick2, 1000);
+    function key(k) { send({ type: 'key', key: k }); }
+    $('pvPrev').addEventListener('click', function () { key('ArrowLeft'); });
+    $('pvFwd').addEventListener('click', function () { key('ArrowRight'); });
+    function toggleRun() { if (readClock().run) clockPause(); else clockStart(); ptick(); }
+    $('pvRun').addEventListener('click', toggleRun);
+    $('pvReset').addEventListener('click', function () {
+      var s = readClock();
+      if (elapsedMs(s, Date.now()) > 10000 && !window.confirm('Reset the session timer to 0:00?')) return;
+      clockReset(false); ptick();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target.closest && e.target.closest('button, summary') && (e.key === ' ' || e.key === 'Enter')) return;
+      var map = { ArrowRight: 'ArrowRight', PageDown: 'ArrowRight', ' ': 'ArrowRight', ArrowLeft: 'ArrowLeft', PageUp: 'ArrowLeft', Home: 'Home', End: 'End' };
+      if (map[e.key]) { e.preventDefault(); key(map[e.key]); }
+      else if (e.key === 's' || e.key === 'S') { e.preventDefault(); toggleRun(); }
+    });
+    window.addEventListener('resize', fitThumb);
+    render();
+    // Ask the deck where it is now, and again while it can't be found
+    send({ type: 'hello' });
+    setInterval(function () { if (Date.now() - lastSeen > 5000) send({ type: 'hello' }); }, 2000);
+    setInterval(ptick, 250);
   }
 })();
