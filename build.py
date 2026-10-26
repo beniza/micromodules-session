@@ -18,6 +18,8 @@ Layout written into this folder (everything except .git/ and this script is repl
                   training media. The deck's demo links to them point to the presenter's local deck
                   server instead (--media-base, default http://localhost:8843/, i.e.
                   python -m http.server 8843 --directory session/deck/dist).
+    /practice/  = the practice pack (session/practice-pack/: index.html + fonts/), public by link, not
+                  encrypted, noindex
     robots.txt, .nojekyll
 
 The local deck build (session/deck/dist/) is only read, never changed.
@@ -38,6 +40,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 TAKE_HOME = ROOT / "session" / "take-home" / "dist" / "web"
 DECK = ROOT / "session" / "deck" / "dist"
+PRACTICE = ROOT / "session" / "practice-pack"
 KEEP = {".git", "build.py"}
 EXCLUDED = ("listen", "media")             # internal media folders in the deck build, never published
 STATICRYPT = "staticrypt@3.5.4"
@@ -193,7 +196,7 @@ def main():
     args = ap.parse_args()
     if not args.media_base.endswith("/"):
         args.media_base += "/"
-    for p in (TAKE_HOME / "index.html", DECK / "index.html", DECK / "content.js"):
+    for p in (TAKE_HOME / "index.html", DECK / "index.html", DECK / "content.js", PRACTICE / "index.html"):
         if not p.exists():
             fail("%s is missing; build the take-home module and the deck first" % p.relative_to(ROOT))
 
@@ -202,6 +205,9 @@ def main():
     shutil.copytree(TAKE_HOME, HERE, dirs_exist_ok=True)
     home = HERE / "index.html"
     home.write_text(add_robots_meta(home.read_text(encoding="utf-8"), "the take-home page"), encoding="utf-8")
+    shutil.copytree(PRACTICE, HERE / "practice")
+    pack = HERE / "practice" / "index.html"
+    pack.write_text(add_robots_meta(pack.read_text(encoding="utf-8"), "the practice pack"), encoding="utf-8")
     with tempfile.TemporaryDirectory() as tmp:
         swapped = build_deck(phrase, args.media_base, Path(tmp))
     (HERE / "robots.txt").write_text(

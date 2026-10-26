@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Micromodule Practice Pack</title>
+<style>
+  @font-face {
+    font-family: "Inter";
+    src: url("fonts/Inter.woff2") format("woff2");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+  :root {
+    --bg: #FCFBF8;
+    --surface: #F3EFE9;
+    --surface-2: #EAE4DB;
+    --ink: #2B2723;
+    --primary: #0D3C61;
+    --on-primary: #FFFFFF;
+    --accent: #C9A882;
+    --muted: #6B635B;
+    --line: #DDD5CA;
+    --slot-bg: #EBDCC8;
+    --slot-ink: #4A3418;
+    --focus: #0D3C61;
+    --prompt-bg: #FFFFFF;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1B1916;
+      --surface: #26231F;
+      --surface-2: #322E29;
+      --ink: #EEE9E2;
+      --primary: #9CC4E8;
+      --on-primary: #10202E;
+      --accent: #C9A882;
+      --muted: #B5ACA1;
+      --line: #3D3832;
+      --slot-bg: #4A3C2B;
+      --slot-ink: #F5E4CC;
+      --focus: #9CC4E8;
+      --prompt-bg: #211F1B;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1B1916;
+    --surface: #26231F;
+    --surface-2: #322E29;
+    --ink: #EEE9E2;
+    --primary: #9CC4E8;
+    --on-primary: #10202E;
+    --accent: #C9A882;
+    --muted: #B5ACA1;
+    --line: #3D3832;
+    --slot-bg: #4A3C2B;
+    --slot-ink: #F5E4CC;
+    --focus: #9CC4E8;
+    --prompt-bg: #211F1B;
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+  header.top { padding: 40px 0 8px; }
+  .toprow { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .kicker { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+  h1 { font-size: clamp(1.9rem, 6vw, 2.6rem); line-height: 1.15; margin: 0 0 12px; color: var(--primary); letter-spacing: -0.02em; font-weight: 700; }
+  .lede { font-size: 1.12rem; color: var(--ink); margin: 0 0 8px; max-width: 60ch; }
+
+  h2 { font-size: 1.45rem; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; color: var(--primary); }
+  h3 { font-size: 1.08rem; margin: 28px 0 8px; }
+  p { margin: 0 0 14px; }
+  a { color: var(--primary); text-underline-offset: 3px; }
+
+  section.step { padding: 44px 0 8px; border-top: 1px solid var(--line); margin-top: 36px; }
+  .step-head { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+  .num {
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+    background: var(--surface-2); color: var(--ink);
+    display: grid; place-items: center; font-weight: 700; font-size: 1rem;
+    border: 2px solid var(--accent);
+  }
+  .meta { font-size: 0.9rem; color: var(--muted); margin: 0; }
+
+  .card { background: var(--surface); border-radius: 14px; padding: 20px 22px; margin: 16px 0; }
+  .warn { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; margin: 20px 0 0; }
+  .warn strong { color: var(--primary); }
+
+  ul.clean, ol.clean { padding-left: 1.2em; margin: 0 0 14px; }
+  ul.clean li, ol.clean li { margin: 6px 0; }
+
+  .rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .rules li { background: var(--surface); border-radius: 14px; padding: 16px 20px; }
+  .rules .what { font-weight: 600; display: block; }
+  .rules .so { color: var(--muted); display: block; margin-top: 2px; }
+  .rules .habit { display: block; margin-top: 6px; }
+  .rules .habit b { color: var(--primary); }
+
+  .prompt-block { margin: 16px 0 20px; }
+  .prompt-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .prompt-label span { font-weight: 600; font-size: 0.95rem; }
+  pre.prompt {
+    margin: 0;
+    background: var(--prompt-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--ink);
+  }
+  pre.prompt.weak { background: var(--surface); color: var(--muted); }
+  .slot {
+    background: var(--slot-bg); color: var(--slot-ink);
+    border-radius: 5px; padding: 1px 4px; font-weight: 600;
+    box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  }
+  .changed { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+
+  button {
+    font: inherit; cursor: pointer;
+  }
+  .copy {
+    font-size: 0.88rem; font-weight: 600;
+    background: var(--primary); color: var(--on-primary);
+    border: 0; border-radius: 999px; padding: 7px 16px; min-height: 36px; min-width: 84px;
+  }
+  .copy:hover { filter: brightness(1.12); }
+  .copy[data-state="done"] { background: var(--surface-2); color: var(--ink); }
+  .theme-toggle {
+    font-size: 0.85rem; font-weight: 500;
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 36px;
+    white-space: nowrap; flex: 0 0 auto;
+  }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+
+  details { background: var(--surface); border-radius: 14px; margin: 16px 0; }
+  details > summary {
+    cursor: pointer; padding: 14px 20px; font-weight: 600; color: var(--primary);
+    list-style: none; display: flex; align-items: center; gap: 10px; border-radius: 14px;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before {
+    content: ""; width: 8px; height: 8px; flex: 0 0 auto;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg); transition: transform .15s ease;
+  }
+  details[open] > summary::before { transform: rotate(45deg); }
+  details .inner { padding: 0 20px 18px; }
+  details .inner pre.prompt { background: var(--prompt-bg); }
+
+  .ingredients { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 14px 0 18px; padding: 0; list-style: none; }
+  .ingredients li { background: var(--surface); border-radius: 12px; padding: 12px 14px; font-size: 0.93rem; }
+  .ingredients b { display: block; color: var(--primary); }
+
+  .why { font-size: 0.98rem; color: var(--muted); }
+  .why b { color: var(--ink); }
+
+  .checklist { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .checklist label {
+    display: flex; gap: 12px; align-items: flex-start; background: var(--surface);
+    border-radius: 12px; padding: 12px 16px; cursor: pointer;
+  }
+  .checklist input { width: 20px; height: 20px; margin: 3px 0 0; flex: 0 0 auto; accent-color: var(--primary); }
+
+  .tools { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .tools li { background: var(--surface); border-radius: 12px; padding: 14px 18px; }
+  .tools b { color: var(--primary); }
+
+  footer { padding: 40px 0 56px; color: var(--muted); font-size: 0.92rem; border-top: 1px solid var(--line); margin-top: 44px; }
+
+  @media (max-width: 480px) {
+    header.top { padding-top: 24px; }
+    .step-head { gap: 12px; }
+    .num { width: 34px; height: 34px; font-size: 0.92rem; }
+    .card, .rules li { padding: 16px; }
+    details > summary { padding: 14px 16px; }
+    details .inner { padding: 0 16px 16px; }
+    pre.prompt { padding: 14px; font-size: 0.86rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="toprow">
+    <p class="kicker">Building micromodules with AI</p>
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch between light and dark theme">Dark theme</button>
+  </div>
+  <h1>Micromodule Practice Pack</h1>
+  <p class="lede">Short, hands-on practice so you leave today with prompts you can reuse to plan, write and illustrate a micromodule with AI.</p>
+</header>
+
+<!-- 1 -->
+<section class="step" aria-labelledby="s1">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">1</div>
+    <div>
+      <h2 id="s1">Before we start</h2>
+      <p class="meta">2 minutes</p>
+    </div>
+  </div>
+  <ul class="checklist">
+    <li><label><input type="checkbox"> <span>Open <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a> and sign in with your <b>personal</b> Google account.</span></label></li>
+    <li><label><input type="checkbox"> <span>Keep this page open beside Zoom, so you can copy prompts as we go.</span></label></li>
+  </ul>
+  <div class="warn" role="note">
+    <p style="margin:0"><strong>Important:</strong> never paste SIL content or anyone's personal data into a personal AI account. Everything on this page uses made-up practice topics, so it's safe to use.</p>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="step" aria-labelledby="s2">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">2</div>
+    <div>
+      <h2 id="s2">Three rules from how AI works</h2>
+      <p class="meta">Each one leads to a simple habit.</p>
+    </div>
+  </div>
+  <ul class="rules">
+    <li>
+      <span class="what">It predicts likely words.</span>
+      <span class="so">So it sounds sure, even when it's wrong.</span>
+      <span class="habit"><b>Habit:</b> check facts against your source.</span>
+    </li>
+    <li>
+      <span class="what">It only knows what's in this chat.</span>
+      <span class="so">It can't see your notes, your learners or your goals unless you tell it.</span>
+      <span class="habit"><b>Habit:</b> give it your source content and context.</span>
+    </li>
+    <li>
+      <span class="what">It forgets between chats.</span>
+      <span class="so">A new chat starts from zero.</span>
+      <span class="habit"><b>Habit:</b> keep your instructions in one reusable prompt.</span>
+    </li>
+  </ul>
+</section>
+
+<!-- 3 -->
+<section class="step" aria-labelledby="s3">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">3</div>
+    <div>
+      <h2 id="s3">Practice 1: Prompt makeover</h2>
+      <p class="meta">About 5 minutes</p>
+    </div>
+  </div>
+  <p>Here's a weak prompt. It will get you <em>something</em>, but probably something generic.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-label"><span>Weak prompt</span><button type="button" class="copy" data-target="p-weak" aria-label="Copy the weak prompt">Copy</button></div>
+    <pre class="prompt weak" id="p-weak">Write a micromodule about giving feedback.</pre>
+  </div>
+
+  <p><b>Your turn:</b> rewrite it in Gemini using the 5 ingredients below. Then compare the two answers.</p>
+  <ul class="ingredients">
+    <li><b>Role</b>Who should the AI act as?</li>
+    <li><b>Audience</b>Who is it for, and what do they already know?</li>
+    <li><b>Source and context</b>Your notes, facts and situation.</li>
+    <li><b>Task and format</b>What to make, and in what shape.</li>
+    <li><b>Constraints</b>Length, tone, and your quality bar.</li>
+  </ul>
+
+  <details>
+    <summary>Show a strong example</summary>
+    <div class="inner">
+      <p>Same topic, all 5 ingredients. The notes are invented, so you can run it as it is.</p>
+      <div class="prompt-block">
+        <div class="prompt-label"><span>Strong prompt</span><button type="button" class="copy" data-target="p-strong" aria-label="Copy the strong example prompt">Copy</button></div>
+<pre class="prompt" id="p-strong">ROLE: You are an experienced learning designer who writes short, practical workplace training.
+
+AUDIENCE: New team leaders who have never given formal feedback before. They are busy and will read this on a phone between meetings.
+
+SOURCE: Use only these notes:
+- Give feedback soon after the event.
+- Describe what you saw, not the person.
+- Explain the impact it had.
+- Ask for their view, then listen.
+- Agree one next step together.
+
+TASK AND FORMAT: Write a 5-minute micromodule as 6 web cards: 1 title card, 4 content cards (one idea each) and 1 card with a 3-question quick check.
+
+CONSTRAINTS: Plain, warm language. Bullets of 4 to 5 words that start with a verb. No jargon. If my notes don't cover something you need, write NEEDS SOURCE instead of inventing it. Before you write, ask me up to 3 questions if anything is unclear.</pre>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- 4 -->
+<section class="step" aria-labelledby="s4">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">4</div>
+    <div>
+      <h2 id="s4">Practice 2: Let the AI interview you</h2>
+      <p class="meta">About 5 minutes</p>
+    </div>
+  </div>
+  <p>This is called <b>meta prompting</b>: asking the AI to help you write the prompt. Fill the highlighted <span class="slot">[slots]</span> with a practice topic, such as "running effective meetings" for "new team leaders".</p>
+
+  <div class="prompt-block">
+    <div class="prompt-label"><span>Option A: Interview me</span><button type="button" class="copy" data-target="p-meta1" aria-label="Copy the interview me prompt">Copy</button></div>
+    <pre class="prompt" id="p-meta1">I want to create a 5-minute micromodule on [topic] for [audience]. Before writing anything, interview me one question at a time to understand the audience, goals, tone and format. After my answers, write the best possible prompt for this task, then wait.</pre>
+  </div>
+
+  <div class="prompt-block">
+    <div class="prompt-label"><span>Option B: Improve my prompt</span><button type="button" class="copy" data-target="p-meta2" aria-label="Copy the improve my prompt prompt">Copy</button></div>
+    <pre class="prompt" id="p-meta2">Improve this prompt: [paste your prompt here]. Tell me what's missing, then rewrite it.</pre>
+  </div>
+
+  <p class="why"><b>Why it works:</b> the AI knows what makes a prompt good, and you know what you need. The interview brings the two together.</p>
+</section>
+
+<!-- 5 -->
+<section class="step" aria-labelledby="s5">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">5</div>
+    <div>
+      <h2 id="s5">Practice 3: The image surprise</h2>
+      <p class="meta">About 6 minutes</p>
+    </div>
+  </div>
+  <p>You've just seen some flat illustrations. Now try this prompt in Gemini and see what comes back.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-label"><span>Image prompt 1</span><button type="button" class="copy" data-target="p-img1" aria-label="Copy image prompt 1">Copy</button></div>
+    <pre class="prompt" id="p-img1">Create an image: <span class="changed">a photorealistic photo of</span> a team leader giving feedback to a colleague at a small table in a bright modern office, <span class="changed">natural light, shallow depth of field, 35mm</span>. The people are invented, not anyone real.</pre>
+  </div>
+
+  <p>Now try the <b>same scene</b> with a different style. Only the underlined words change.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-label"><span>Image prompt 2</span><button type="button" class="copy" data-target="p-img2" aria-label="Copy image prompt 2">Copy</button></div>
+    <pre class="prompt" id="p-img2">Create an image: a team leader giving feedback to a colleague at a small table in a bright modern office, <span class="changed">as a flat vector illustration, warm neutral palette, simple shapes, no text</span>. The people are invented, not anyone real.</pre>
+  </div>
+
+  <h3>Talk about it</h3>
+  <ul class="clean">
+    <li>Which image would you use in a module, and why?</li>
+    <li>What could go wrong with realistic people?</li>
+  </ul>
+
+  <details>
+    <summary>After you've tried it</summary>
+    <div class="inner">
+      <p><b>A few words control the whole style.</b> "Photorealistic, 35mm, shallow depth of field" asks for a photo; "flat vector, simple shapes" asks for an illustration. Name the style you want, every time.</p>
+      <p>Realistic people bring extra risks in learning content:</p>
+      <ul class="clean">
+        <li><b>They change from image to image.</b> The "same" person rarely looks the same twice, which breaks a story.</li>
+        <li><b>They can misrepresent cultures.</b> Clothing, settings and faces may be stereotyped or simply wrong.</li>
+        <li><b>They may look like real people.</b> That can mislead learners or cause real harm.</li>
+        <li><b>Text inside images often comes out garbled.</b> Add text yourself, outside the image.</li>
+      </ul>
+      <p style="margin-bottom:0">A simple, consistent illustration style is usually safer, kinder and easier to keep consistent.</p>
+    </div>
+  </details>
+</section>
+
+<!-- 6 -->
+<section class="step" aria-labelledby="s6">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">6</div>
+    <div>
+      <h2 id="s6">Your micromodule assistant</h2>
+      <p class="meta">Take this home</p>
+    </div>
+  </div>
+  <p>Paste this as the <b>first message</b> in a new chat (Gemini or Claude). It turns the chat into a co-creator that interviews you, works only from your content, and checks with you at every step.</p>
+
+  <div class="prompt-block">
+    <div class="prompt-label"><span>Starter prompt</span><button type="button" class="copy" data-target="p-assistant" aria-label="Copy the micromodule assistant starter prompt">Copy</button></div>
+<pre class="prompt" id="p-assistant">You are my micromodule co-creator. A micromodule is a short piece of learning (about 3 to 7 minutes) on one topic, delivered as an infographic, a set of web cards, a short podcast or a short video. Follow these rules for this whole conversation.
+
+HOW WE WORK
+1. Interview me first. Ask one question at a time and wait for my answer before asking the next. Find out: who the audience is; the one thing they should be able to do afterwards (the goal); the format (infographic, web cards, podcast or video); the length; and the tone. Then summarise what you heard in 5 short bullets and ask me to confirm.
+2. Ask me for my source content (notes, a draft, key facts). Work only from what I give you. If something is needed but is not in my source, write "NEEDS SOURCE" followed by what is missing, instead of inventing it.
+3. Propose before you produce. Work in small steps: (a) outline, (b) text, (c) visuals. At each step, show me your proposal and wait for my approval or changes before moving on. Never skip ahead.
+
+TEXT RULES
+- One idea per screen, card or scene.
+- Bullets are 4 to 5 words and start with a verb.
+- Use plain language. If you must use a technical term, explain it in one line.
+
+VISUAL RULES
+- At the start of the visuals step, agree one visual style with me, then use that same style for every image.
+- If there is a character, describe them once in detail and repeat that exact description in every image prompt, so they look the same each time.
+- Avoid text inside images unless I ask for it; text is added separately.
+- Never use the real names of people, and never show real or famous people. Use roles (for example "the team leader") or clearly invented first names.
+
+AT THE END OF EVERY OUTPUT
+Add a short "Human review" checklist: facts to check against my source, any NEEDS SOURCE gaps, decisions I need to approve, and anything to test (for example, how it looks on a phone).
+
+Start now by asking your first interview question.</pre>
+  </div>
+
+  <div class="card">
+    <p style="margin:0 0 6px"><b>Save it as a Gem</b> (a Gem is a saved assistant in Gemini that remembers its instructions).</p>
+    <p style="margin:0">Look for <b>Gems</b> in the Gemini menu, create a new Gem, and paste the prompt above into its instructions. Then start any new micromodule from that Gem.</p>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="step" aria-labelledby="s7">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">7</div>
+    <div>
+      <h2 id="s7">Human in the driving seat</h2>
+      <p class="meta">Review checklist before anything goes live</p>
+    </div>
+  </div>
+  <p>The AI drafts; you decide. Tick these off for every module.</p>
+  <ul class="checklist">
+    <li><label><input type="checkbox"> <span>Facts checked against the source.</span></label></li>
+    <li><label><input type="checkbox"> <span>No invented content (every NEEDS SOURCE gap resolved).</span></label></li>
+    <li><label><input type="checkbox"> <span>The module owner has approved the major decisions.</span></label></li>
+    <li><label><input type="checkbox"> <span>One consistent style across text and images.</span></label></li>
+    <li><label><input type="checkbox"> <span>No real names of people.</span></label></li>
+    <li><label><input type="checkbox"> <span>Licences checked (free tiers often don't allow commercial use).</span></label></li>
+    <li><label><input type="checkbox"> <span>AI-generated images, audio and video are labelled.</span></label></li>
+    <li><label><input type="checkbox"> <span>Tested on a phone.</span></label></li>
+  </ul>
+</section>
+
+<!-- 8 -->
+<section class="step" aria-labelledby="s8">
+  <div class="step-head">
+    <div class="num" aria-hidden="true">8</div>
+    <div>
+      <h2 id="s8">Take it further</h2>
+      <p class="meta">A tool for each format</p>
+    </div>
+  </div>
+  <ul class="tools">
+    <li><b>Gemini:</b> draft text and create images, all in one chat.</li>
+    <li><b>NotebookLM:</b> turn a document into a quick podcast-style prototype to hear how a topic sounds.</li>
+    <li><b>ElevenLabs:</b> give a script you've written a natural-sounding voice.</li>
+    <li><b>Claude:</b> build interactive web pages, cards and video or podcast scripts.</li>
+  </ul>
+  <p class="why" style="margin-top:14px">Free tiers may not allow commercial use, so check each tool's terms before you publish anything.</p>
+</section>
+
+<footer>
+  <p style="margin:0">Practice with invented topics only. Never paste SIL or personal data into a personal AI account.</p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  // Highlight [slots] in prompt boxes (skip boxes that already contain markup).
+  document.querySelectorAll('pre.prompt').forEach(function (pre) {
+    if (pre.children.length) return;
+    var esc = pre.textContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    pre.innerHTML = esc.replace(/\[[^\]\n]+\]/g, function (m) { return '<span class="slot">' + m + '</span>'; });
+  });
+
+  function selectText(el) {
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function feedback(btn, text) {
+    var original = btn.getAttribute('data-label') || btn.textContent;
+    btn.setAttribute('data-label', original);
+    btn.textContent = text;
+    btn.setAttribute('data-state', 'done');
+    clearTimeout(btn._t);
+    btn._t = setTimeout(function () {
+      btn.textContent = original;
+      btn.removeAttribute('data-state');
+    }, 2000);
+  }
+
+  var live = document.createElement('div');
+  live.setAttribute('aria-live', 'polite');
+  live.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);';
+  document.body.appendChild(live);
+
+  document.querySelectorAll('button.copy').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+      var el = document.getElementById(btn.getAttribute('data-target'));
+      if (!el) return;
+      var text = el.textContent;
+      try {
+        if (!navigator.clipboard || !window.isSecureContext) throw new Error('no clipboard');
+        await navigator.clipboard.writeText(text);
+        feedback(btn, 'Copied');
+        live.textContent = 'Prompt copied';
+      } catch (e) {
+        selectText(el);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+        if (ok) {
+          feedback(btn, 'Copied');
+          live.textContent = 'Prompt copied';
+        } else {
+          feedback(btn, 'Selected: press Ctrl+C');
+          live.textContent = 'Prompt selected. Press Control C, or Command C on a Mac, to copy.';
+        }
+      }
+    });
+  });
+
+  // Theme toggle
+  var root = document.documentElement;
+  var toggle = document.getElementById('themeToggle');
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function label() { toggle.textContent = isDark() ? 'Light theme' : 'Dark theme'; }
+  try { var saved = localStorage.getItem('pp-theme'); if (saved) root.setAttribute('data-theme', saved); } catch (e) {}
+  label();
+  toggle.addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('pp-theme', next); } catch (e) {}
+    label();
+  });
+})();
+</script>
+</body>
+</html>
