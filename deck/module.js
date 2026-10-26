@@ -675,6 +675,7 @@
           '<p class="pv-where" id="pvWhere"></p>' +
           '<h1 id="pvTitle"></h1>' +
           '<ul class="pv-act" id="pvAct"></ul>' +
+          '<section class="pv-share" id="pvShare" aria-label="Paste into the Zoom chat"></section>' +
           '<ul class="pv-say" id="pvSay"></ul>' +
           '<p class="pv-cue" id="pvCue"></p>' +
           '<details class="pv-notes"><summary>Full notes</summary><div id="pvNotes"></div></details>' +
@@ -702,6 +703,7 @@
       $('pvTitle').textContent = c.label || c.title || c.type;
       $('pvAct').innerHTML = (c.act || []).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('');
       $('pvAct').hidden = !(c.act && c.act.length);
+      renderShare(c.share || []);
       $('pvSay').innerHTML = (c.say || []).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('');
       $('pvCue').textContent = c.cue || '';
       $('pvCue').hidden = !c.cue;
@@ -720,6 +722,53 @@
       stage.classList.toggle('pv-dark', copy.classList.contains('theme-blue'));
       fitThumb();
       ptick();
+    }
+    // "Share" items: the exact text to paste into the Zoom chat, in order, each with a Copy button.
+    // Only this presenter window renders them; the shared deck never does.
+    function renderShare(items) {
+      var box = $('pvShare');
+      box.innerHTML = '';
+      box.hidden = !items.length;
+      if (!items.length) return;
+      add(box, 'p', 'pv-share-k', items.length > 1 ? 'Paste into the Zoom chat, in this order' : 'Paste into the Zoom chat');
+      items.forEach(function (it, k) {
+        var item = add(box, 'div', 'pv-share-item' + (it.optional ? ' optional' : ''));
+        var head = add(item, 'div', 'pv-share-head');
+        if (items.length > 1) add(head, 'span', 'pv-share-n', (k + 1) + ' of ' + items.length);
+        add(head, 'b', 'pv-share-label', esc(it.label));
+        if (it.optional) add(head, 'span', 'pv-share-opt', 'Optional');
+        var btn = add(head, 'button', 'pv-share-copy', 'Copy');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Copy: ' + it.label);
+        var pre = add(item, 'pre', 'pv-share-text');
+        pre.textContent = it.text;
+        pre.tabIndex = 0;
+        btn.addEventListener('click', function () { copyShare(it.text, pre, btn); });
+      });
+    }
+    function copyShare(text, pre, btn) {
+      function done(ok) {
+        btn.textContent = ok ? 'Copied' : 'Selected: press Ctrl+C';
+        btn.classList.toggle('done', ok);
+        clearTimeout(btn._t);
+        btn._t = setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 2500);
+      }
+      function fallback() {
+        // Select the visible text, so Ctrl+C works even if the copy command is refused
+        var ok = false;
+        try {
+          var r = document.createRange();
+          r.selectNodeContents(pre);
+          var sel = window.getSelection();
+          sel.removeAllRanges(); sel.addRange(r);
+          ok = document.execCommand('copy');
+        } catch (e) { ok = false; }
+        done(ok);
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+        else fallback();
+      } catch (e) { fallback(); }
     }
     function ptick() {
       var s = readClock(), t = Date.now();

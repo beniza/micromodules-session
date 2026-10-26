@@ -403,6 +403,19 @@ body.pv { display: block; overflow: auto; background: var(--cream); min-height: 
 .pv-act { list-style: none; margin: 0 0 14px; padding: 0; }
 .pv-act li { margin: 0 0 8px; padding: 10px 16px 10px 46px; position: relative; border-radius: 12px; background: var(--accent); color: var(--ink); font-size: 22px; font-weight: 800; }
 .pv-act li::before { content: 'DO'; position: absolute; left: 12px; top: 13px; font-size: 13px; letter-spacing: 0.08em; color: var(--blue); }
+/* Share items: exact text to paste into the Zoom chat (presenter window only) */
+.pv-share { margin: 0 0 16px; padding: 12px 14px 4px; border-radius: 12px; border: 3px solid var(--blue); background: #fff; }
+.pv-share-k { margin: 0 0 8px; font-size: 14px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue); }
+.pv-share-item { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--cream); box-shadow: 0 0 0 1px var(--line); }
+.pv-share-item.optional { border-left: 5px dashed var(--accent-deep); }
+.pv-share-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 6px; }
+.pv-share-n { padding: 2px 10px; border-radius: 999px; background: var(--blue); color: #fff; font-size: 14px; font-weight: 800; white-space: nowrap; }
+.pv-share-label { flex: 1 1 auto; min-width: 0; font-size: 19px; color: var(--ink); }
+.pv-share-opt { padding: 2px 10px; border-radius: 999px; background: var(--beige); color: var(--accent-deep); font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.pv .pv-share-copy { margin-left: auto; min-height: 40px; min-width: 96px; padding: 6px 16px; border: 0; border-radius: 8px; background: var(--blue); color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.pv .pv-share-copy.done { background: #2E7D4F; }
+.pv-share-text { margin: 0; max-height: 210px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 17px; line-height: 1.4; color: var(--ink-soft); user-select: text; }
+.pv-share-text:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .pv-say { margin: 0 0 14px; padding-left: 28px; font-size: 25px; line-height: 1.32; color: var(--ink); }
 .pv-say li { margin: 0 0 10px; padding-left: 4px; }
 .pv-say li::marker { color: var(--blue); }
