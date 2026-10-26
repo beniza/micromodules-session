@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D3C61">
+<title>Make your first micromodule with AI</title>
+<link rel="stylesheet" href="module.css">
+</head>
+<body>
+
+<main class="stage" id="stage" aria-roledescription="carousel">
+  <div class="topbar" id="topbar">
+    <div class="segments" id="segments" aria-hidden="true"></div>
+    <div class="meta">
+      <span id="series"></span>
+      <span id="counter"></span>
+    </div>
+  </div>
+  <div class="deck" id="deck"></div>
+  <p class="sr-only" aria-live="polite" id="live"></p>
+</main>
+
+<button class="side-nav prev" id="prevBtn" type="button" aria-label="Previous card">
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M13 4l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
+<button class="side-nav next" id="nextBtn" type="button" aria-label="Next card">
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
+
+<script src="content.js"></script>
+<script src="module.js"></script>
+</body>
+</html>
